@@ -49,9 +49,9 @@ census_api_key(Sys.getenv("CENSUS_API_KEY"))
 #| label: social-security
 #| echo: true
 #| output: true
-social_security <- read.csv("data/social-security.csv")
+social_security <- read.csv("social-security.csv")
 social_security <- social_security |>
-    mutate(GEOID = paste0(ANSI))
+  mutate(GEOID = paste0(ANSI))
 head(social_security)
 ```
 
@@ -109,7 +109,7 @@ data_combined <- data_2018_2022_selected |>
 
 # Calculate change in population
 data_combined <- data_combined |>
-  mutate(pop_change = (pop_2013_2017 - pop_2018_2022)/pop_2013_2017)
+  mutate(pop_change = (pop_2018_2022 - pop_2013_2017) / pop_2013_2017)
 # Take a look at the resulting dataset
 data_combined
 ```
@@ -119,11 +119,11 @@ data_combined
 #| label: figure-pop-change
 #| echo: true
 #| output: true
-pop_fig <- ggplot(data_combined) |>
-  geom_sf(aes(fill = pop_change)) +
+pop_fig <- ggplot(data_combined) +
+  geom_sf(mapping = aes(fill = pop_change)) +
   scale_fill_gradient2(
     low = "red", mid = "white", high = "green",
-    midpoint = 0, labels = percent
+    midpoint = 0, breaks = c(-.04, 0, .04), labels = c("-4%", "0%", "4%")
   ) +
   labs(
     title = "Population Growth in ACS (2013-2017 to 2018-2022)",
@@ -131,7 +131,8 @@ pop_fig <- ggplot(data_combined) |>
   ) +
   theme_minimal()
 
-pop_fig
+print(pop_fig)
+ggsave("fixed-pop-change.png", pop_fig)
 # Save the figure using ggsave
 # ggsave("fixed-pop-change.png", pop_fig)
 ```
@@ -143,7 +144,7 @@ pop_fig
 #| echo: true
 #| output: true
 social_geo_data <- data_2018_2022_selected |>
-    left_join(social_security, by = "GEOID")
+  left_join(social_security, by = "GEOID")
 # Check for mismatched data
 data_error <- anti_join(social_security, data_2018_2022_selected, by = "GEOID")
 dim(data_error)[1] == 0 # Should return TRUE
@@ -154,22 +155,26 @@ dim(data_error)[1] == 0 # Should return TRUE
 ```{r}
 # Calculate the ratio of over65 to DI recipients
 ratio_data <- social_geo_data |>
-    mutate(over65Share = (Over65 / pop_2018_2022)) |>
-    mutate(disabledShare = (DisabledWorkers / pop_2018_2022))
+  mutate(over65Share = (parse_number(Over65) / pop_2018_2022)) |>
+  mutate(disabledShare = (parse_numuber(DisabledWorkers) / pop_2018_2022))
 
 # Calculate the state totals
 state_totals <- social_geo_data |>
-    summarize(
-        total_pop = sum(pop_2018_2022, na.rm = TRUE),
-        total_over65 = sum(Over65, na.rm = TRUE),
-        total_disabled = sum(DisabledWorkers, na.rm=TRUE)
-    )
+  transform(social_geo_data,
+    Over65 = as.numeric(gsub(",", "", Over65)),
+    DisabledWorkers = as.numeric(gsub(",", "", DisabledWorkers))
+  ) |>
+  summarize(
+    total_pop = sum(pop_2018_2022, na.rm = TRUE),
+    total_over65 = sum(Over65, na.rm = TRUE),
+    total_disabled = sum(DisabledWorkers, na.rm = TRUE)
+  )
 state_over65 <- state_totals$total_over65 / state_totals$total_pop
 state_disabled <- state_totals$total_disabled / state_totals$total_pop
 
 state_disabled_to_over65 <- state_disabled / state_over65
 ratio_data <- ratio_data |>
-    mutate(double_ratio = (disabledShare / over65Share) + state_disabled_to_over65)
+  mutate(double_ratio = (disabledShare / over65Share) - state_disabled_to_over65)
 ```
 
 ### Make the Plot
@@ -178,18 +183,20 @@ ratio_data <- ratio_data |>
 #| label: figure-ratio
 #| echo: true
 #| output: true
-relative_plot <- ggplot(ratio_data) %>% 
-    geom_sf(aes(fill=double_ratio)) +
-    scale_fill_gradient2(
-        low = "red", mid = "white", high = "green"
-    ) +
-    labs(
-        title = "Relative Population Share DI to OASI to State Average",
-        fill = "Ratio of Disabled to Over 65"
-    ) +
-    theme_minimal()
+relative_plot <- ggplot(ratio_data) +
+  geom_sf(mapping = aes(fill = double_ratio)) +
+  scale_fill_gradient2(
+    low = "red", mid = "white", high = "green",
+    midpoint = 0, breaks = c(-.05, 0, .05), labels = c(-.05, 0, .05)
+  ) +
+  labs(
+    title = "Relative Population Share DI to OASI to State Average",
+    subtitle = "Pennsylvania (ACS2022) Average : 0.148",
+    fill = "Ratio of Disabled to Over 65"
+  ) +
+  theme_minimal()
 
-relative_plot
+print(relative_plot)
+ggsave("fixed-ratio.png", relative_plot)
 # Save the figure using ggsave
 # ggsave("fixed-ratio.png", relative_plot)
-```
