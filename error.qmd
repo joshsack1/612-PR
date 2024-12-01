@@ -204,8 +204,8 @@ relative_plot <- ggplot(ratio_data) +
     geom_sf(aes(fill=double_ratio)) +
     scale_fill_gradient2(
         low = "red", mid = "white", high = "green",
-        limits = c(0.6, 1.6),  # Add these limits
-        midpoint = 1          # Add midpoint at 1
+        limits = c(0.6, 1.6),  
+        midpoint = 1          
     ) +
     labs(
         title = "Relative Population Share DI to OASI to State Average",
