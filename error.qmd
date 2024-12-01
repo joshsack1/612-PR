@@ -12,6 +12,11 @@ This process should take a few minutes.
 Don't use your AU email, as it takes much longer.
 
 # Code
+```{r}
+install.packages("tidyverse")
+install.packages("tidycensus")
+install.packages("sf")
+```
 
 ## Load Libraries
 
@@ -22,6 +27,7 @@ Don't use your AU email, as it takes much longer.
 library(tidyverse)
 library(tidycensus)
 library(sf)
+library(scales)
 ```
 
 ## Connect to the Census API
@@ -109,7 +115,7 @@ data_combined <- data_2018_2022_selected |>
 
 # Calculate change in population
 data_combined <- data_combined |>
-  mutate(pop_change = (pop_2013_2017 - pop_2018_2022)/pop_2013_2017)
+  mutate(pop_change = (pop_2018_2022 - pop_2013_2017)/pop_2013_2017)
 # Take a look at the resulting dataset
 data_combined
 ```
@@ -119,7 +125,7 @@ data_combined
 #| label: figure-pop-change
 #| echo: true
 #| output: true
-pop_fig <- ggplot(data_combined) |>
+pop_fig <- ggplot(data_combined) +
   geom_sf(aes(fill = pop_change)) +
   scale_fill_gradient2(
     low = "red", mid = "white", high = "green",
@@ -152,24 +158,40 @@ dim(data_error)[1] == 0 # Should return TRUE
 ### Calculate the relative population share of OASI and DI beneficiaries
 
 ```{r}
+#Testing Stuff
+ str(social_geo_data)
+
+
+
+```
+
+```{r}
 # Calculate the ratio of over65 to DI recipients
 ratio_data <- social_geo_data |>
-    mutate(over65Share = (Over65 / pop_2018_2022)) |>
-    mutate(disabledShare = (DisabledWorkers / pop_2018_2022))
+    mutate(
+        Over65 = as.numeric(gsub(",", "", Over65)),  
+        DisabledWorkers = as.numeric(gsub(",", "", DisabledWorkers)),  
+        over65Share = Over65 / pop_2018_2022,
+        disabledShare = DisabledWorkers / pop_2018_2022
+    )
 
 # Calculate the state totals
 state_totals <- social_geo_data |>
+    mutate(
+        Over65 = as.numeric(gsub(",", "", Over65)),
+        DisabledWorkers = as.numeric(gsub(",", "", DisabledWorkers))
+    ) |>
     summarize(
         total_pop = sum(pop_2018_2022, na.rm = TRUE),
         total_over65 = sum(Over65, na.rm = TRUE),
-        total_disabled = sum(DisabledWorkers, na.rm=TRUE)
+        total_disabled = sum(DisabledWorkers, na.rm = TRUE)
     )
 state_over65 <- state_totals$total_over65 / state_totals$total_pop
 state_disabled <- state_totals$total_disabled / state_totals$total_pop
 
 state_disabled_to_over65 <- state_disabled / state_over65
 ratio_data <- ratio_data |>
-    mutate(double_ratio = (disabledShare / over65Share) + state_disabled_to_over65)
+    mutate(double_ratio = (disabledShare / over65Share) / state_disabled_to_over65)
 ```
 
 ### Make the Plot
@@ -178,10 +200,12 @@ ratio_data <- ratio_data |>
 #| label: figure-ratio
 #| echo: true
 #| output: true
-relative_plot <- ggplot(ratio_data) %>% 
+relative_plot <- ggplot(ratio_data) +
     geom_sf(aes(fill=double_ratio)) +
     scale_fill_gradient2(
-        low = "red", mid = "white", high = "green"
+        low = "red", mid = "white", high = "green",
+        limits = c(0.6, 1.6),  # Add these limits
+        midpoint = 1          # Add midpoint at 1
     ) +
     labs(
         title = "Relative Population Share DI to OASI to State Average",
